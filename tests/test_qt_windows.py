@@ -4,16 +4,18 @@ from decimal import Decimal
 
 import pytest
 
-pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+try:
+    from PySide6.QtWidgets import QApplication
+except ImportError as exc:
+    pytest.skip(f"PySide6 Qt widgets unavailable: {exc}", allow_module_level=True)
 
-from cost_tracker.app_paths import AppPaths  # noqa: E402
-from cost_tracker.csv_monthly_store import CsvMonthlyStore  # noqa: E402
-from cost_tracker.start_window import StartWindow  # noqa: E402
-from cost_tracker.tracker_window import TrackerWindow  # noqa: E402
-from cost_tracker.user_account_store import UserAccountStore  # noqa: E402
+from cost_tracker.app_paths import AppPaths
+from cost_tracker.csv_monthly_store import CsvMonthlyStore
+from cost_tracker.start_window import StartWindow
+from cost_tracker.tracker_window import TrackerWindow
+from cost_tracker.user_account_store import UserAccountStore
 
 
 @pytest.fixture(scope="module")
@@ -28,12 +30,12 @@ def test_existing_users_button_only_after_accounts_exist(qapp, tmp_path) -> None
     paths = AppPaths(tmp_path / "data", tmp_path / "config.json")
     accounts = UserAccountStore(paths.data_directory, pbkdf2_iterations=1_000)
     window = StartWindow(paths, accounts)
-    assert window.existing_button.isVisible() is False
+    assert window.existing_button.isHidden() is True
     assert window.create_button.text() == "Create user"
     accounts.create_user("sam", "secret")
     window.accounts = accounts
     window._refresh_home()
-    assert window.existing_button.isVisible() is True
+    assert window.existing_button.isHidden() is False
     assert window.create_button.text() == "Create another user"
     window.close()
 

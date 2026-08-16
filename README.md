@@ -33,7 +33,7 @@ python -m cost_tracker
 pytest
 ```
 
-GUI tests use Qt’s offscreen platform and are skipped if PySide6 is not installed.
+GUI tests use Qt’s offscreen platform. They skip if PySide6 cannot load (for example when `libEGL` is missing).
 
 ## Data layout
 
