@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cost-tracker"
 version = "1.0.0"
-description = "Local multi-user cost tracker with an Excel-like table and CSV storage"
+description = "Test-project local cost tracker with CSV storage and no login"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

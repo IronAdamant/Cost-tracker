@@ -2,9 +2,11 @@
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -20,10 +22,11 @@ from PySide6.QtWidgets import (
 )
 
 from cost_tracker.amount_parsing import ZERO, format_amount, format_amount_plain, parse_amount
-from cost_tracker.constants import APP_NAME
+from cost_tracker.app_paths import AppPaths
+from cost_tracker.app_settings_store import AppSettingsStore
+from cost_tracker.constants import APP_NAME, DEFAULT_SHEET_ID
 from cost_tracker.csv_monthly_store import CsvMonthlyStore
 from cost_tracker.monthly_cost_sheet import month_start, shift_month
-from cost_tracker.user_account_store import UserAccountStore
 
 MONTH_NAMES = (
     "January",
@@ -42,23 +45,23 @@ MONTH_NAMES = (
 
 
 class TrackerWindow(QMainWindow):
-    logged_out = Signal()
-
     def __init__(
         self,
-        username: str,
-        accounts: UserAccountStore,
+        paths: AppPaths,
+        settings: AppSettingsStore,
         store: CsvMonthlyStore,
         today: date | None = None,
+        sheet_id: str = DEFAULT_SHEET_ID,
     ) -> None:
         super().__init__()
-        self.username = username
-        self.accounts = accounts
+        self.paths = paths
+        self.settings = settings
         self.store = store
+        self.sheet_id = sheet_id
         self.today = today or date.today()
-        self.sheet = store.load(username, self.today.year, self.today.month)
+        self.sheet = store.load(sheet_id, self.today.year, self.today.month)
 
-        self.setWindowTitle(f"{APP_NAME} — {username}")
+        self.setWindowTitle(APP_NAME)
         self.resize(1100, 620)
         self._build_ui()
         self._reload_table()
@@ -80,22 +83,22 @@ class TrackerWindow(QMainWindow):
 
     def _header_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
-        welcome = QLabel(f"Welcome back, {self.username}")
-        welcome.setObjectName("title")
+        title = QLabel(APP_NAME)
+        title.setObjectName("title")
+        note = QLabel("Test project — no login.")
+        note.setObjectName("subtitle")
         self.month_label = QLabel()
         self.month_label.setObjectName("monthTitle")
         self.prev_button = QPushButton("Previous month")
         self.next_button = QPushButton("Next month")
         self.prev_button.clicked.connect(lambda: self._shift_month(-1))
         self.next_button.clicked.connect(lambda: self._shift_month(1))
-        logout = QPushButton("Log out")
-        logout.clicked.connect(self._logout)
-        row.addWidget(welcome)
+        row.addWidget(title)
+        row.addWidget(note)
         row.addStretch()
         row.addWidget(self.prev_button)
         row.addWidget(self.month_label)
         row.addWidget(self.next_button)
-        row.addWidget(logout)
         return row
 
     def _table_actions(self) -> QHBoxLayout:
@@ -104,8 +107,11 @@ class TrackerWindow(QMainWindow):
         add_category.clicked.connect(self._add_category)
         set_target = QPushButton("Set monthly target")
         set_target.clicked.connect(self._set_target)
+        choose_folder = QPushButton("Data folder")
+        choose_folder.clicked.connect(self._choose_folder)
         row.addWidget(add_category)
         row.addWidget(set_target)
+        row.addWidget(choose_folder)
         row.addStretch()
         self.status_label = QLabel("")
         self.status_label.setObjectName("subtitle")
@@ -200,7 +206,7 @@ class TrackerWindow(QMainWindow):
         current = month_start(self.today.year, self.today.month)
         if month_start(year, month) > current:
             return
-        self.sheet = self.store.load(self.username, year, month)
+        self.sheet = self.store.load(self.sheet_id, year, month)
         self._reload_table()
         self._refresh_summary()
 
@@ -218,7 +224,7 @@ class TrackerWindow(QMainWindow):
         self._refresh_summary()
 
     def _set_target(self) -> None:
-        current = self.accounts.monthly_target(self.username)
+        current = self.settings.monthly_target()
         default = "" if current is None else format_amount_plain(current)
         text, accepted = QInputDialog.getText(
             self,
@@ -233,15 +239,33 @@ class TrackerWindow(QMainWindow):
         except ValueError:
             QMessageBox.warning(self, "Invalid amount", "Enter a non-negative number.")
             return
-        self.accounts.set_monthly_target(self.username, amount)
+        self.settings.set_monthly_target(amount)
         self._refresh_summary()
 
+    def _choose_folder(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(
+            self,
+            "Select data folder",
+            str(self.paths.data_directory),
+        )
+        if not chosen:
+            return
+        self._save_now()
+        self.paths.data_directory = Path(chosen)
+        self.paths.save()
+        self.settings = AppSettingsStore(self.paths.data_directory)
+        self.store = CsvMonthlyStore(self.paths.data_directory)
+        self.sheet = self.store.load(self.sheet_id, self.sheet.year, self.sheet.month)
+        self._reload_table()
+        self._refresh_summary()
+        self.status_label.setText(f"Folder: {self.paths.data_directory}")
+
     def _refresh_summary(self) -> None:
-        today_total = self.store.today_total(self.username, self.today, overlay=self.sheet)
-        week_total = self.store.week_total(self.username, self.today, overlay=self.sheet)
+        today_total = self.store.today_total(self.sheet_id, self.today, overlay=self.sheet)
+        week_total = self.store.week_total(self.sheet_id, self.today, overlay=self.sheet)
         month_total = self.sheet.month_total()
-        year_total = self.store.year_total(self.username, self.sheet.year, overlay=self.sheet)
-        target = self.accounts.monthly_target(self.username)
+        year_total = self.store.year_total(self.sheet_id, self.sheet.year, overlay=self.sheet)
+        target = self.settings.monthly_target()
         self.today_label.setText(f"Today\n{format_amount(today_total)}")
         self.week_label.setText(f"This week\n{format_amount(week_total)}")
         self.month_total_label.setText(
@@ -265,13 +289,8 @@ class TrackerWindow(QMainWindow):
         )
 
     def _save_now(self) -> None:
-        self.store.save(self.username, self.sheet)
+        self.store.save(self.sheet_id, self.sheet)
         self.status_label.setText("Saved")
-
-    def _logout(self) -> None:
-        self._save_now()
-        self.logged_out.emit()
-        self.close()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self._save_now()

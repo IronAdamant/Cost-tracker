@@ -1,18 +1,19 @@
 # Cost Tracker
 
-Local desktop app for tracking daily spending in an Excel-like table. Data stays on your computer as CSV files. Multiple local users are supported; only one person should use the app at a time.
+Test-project desktop app for tracking daily spending in an Excel-like table. Data stays on disk as CSV files.
 
-This is version **1.0.0**, a rewrite of the 0.11 pre-release. The older modules mixed UI, CSV paths, and login state across circular imports, so setup, headers, and saves were unreliable. This revision keeps the same product and replaces the internals.
+**This is a test project. There is no login.** Do not enter usernames, passwords, or real account credentials. The app opens the cost grid directly.
+
+This is version **1.0.0**, a rewrite of the 0.11 pre-release.
 
 ## Features
 
-- Monthly grid: categories as rows, days of the month as columns
-- Daily totals in the table, plus today / this week / this month / this year in the summary bar
+- Opens straight to the monthly grid (categories as rows, days as columns)
+- Daily totals in the table, plus today / this week / this month / this year
 - Previous and next month (next month stops at the current month)
 - Optional monthly target with remaining / over amount
-- Local users with optional passwords (salted PBKDF2, not plain SHA-256)
-- One CSV file per user per month, rewritten in full on save (no duplicate appends)
-- Data folder remembered in `~/.config/cost-tracker/config.json`, so setup is not asked again on every launch
+- One CSV file per month, rewritten in full on save
+- Data folder remembered in `~/.config/cost-tracker/config.json`
 
 ## Run
 
@@ -37,10 +38,10 @@ GUI tests use Qt’s offscreen platform. They skip if PySide6 cannot load (for e
 
 ## Data layout
 
-After you choose a folder (default `~/Cost Tracker/Cost Tracking Data`):
+Default folder: `~/Cost Tracker/Cost Tracking Data`
 
-- `users.json` — usernames, password hashes, monthly targets
-- `costs_<user>_YYYY-MM.csv` — one month grid
+- `settings.json` — monthly target only (no accounts)
+- `costs_local_YYYY-MM.csv` — one month grid
 
 CSV header row:
 
@@ -50,8 +51,4 @@ Food,12.50,
 Fuel,,
 ```
 
-Version 0.11 files used several overlapping names and are **not** imported automatically. Copy any values you still need into the new grid, or keep the old files as a backup.
-
-## What 0.11 left unfinished
-
-Those items are implemented here: previous-month navigation, automatic sums, and a monthly target. Login buttons now depend on whether accounts exist, and the data folder is stored outside the data folder so the app can find it next time.
+Version 0.11 files are **not** imported automatically.
