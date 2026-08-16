@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cost-tracker"
+version = "1.0.0"
+description = "Local multi-user cost tracker with an Excel-like table and CSV storage"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+cost-tracker = "cost_tracker.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["cost_tracker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
